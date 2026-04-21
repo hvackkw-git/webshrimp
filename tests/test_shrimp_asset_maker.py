@@ -2,8 +2,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from shrimp_asset_maker import build_metadata, build_shrimp_svg, make_shrimp_assets
+from shrimp_asset_maker import build_metadata, build_shrimp_svg, main, make_shrimp_assets
 
 
 class ShrimpAssetMakerTests(unittest.TestCase):
@@ -39,6 +40,14 @@ class ShrimpAssetMakerTests(unittest.TestCase):
             self.assertTrue(metadata_path.exists())
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             self.assertEqual(metadata["svg"], "test-shrimp.svg")
+
+    def test_main_rejects_non_positive_size(self) -> None:
+        with patch(
+            "sys.argv",
+            ["shrimp_asset_maker.py", "--size", "0", "--output-dir", "/tmp/ignored"],
+        ):
+            with self.assertRaises(ValueError):
+                main()
 
 
 if __name__ == "__main__":
