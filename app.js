@@ -7,19 +7,23 @@ const applyConfigBtn = document.getElementById("applyConfig");
 const configStatus = document.getElementById("configStatus");
 
 const BODY_ORDER = ["tail", "body1", "body2", "body3", "body4", "body5", "chest", "head"];
-const PART_ORDER = [...BODY_ORDER, "leg1", "leg2"];
+const PART_ORDER = [...BODY_ORDER, "leg1", "leg2", "mouth1", "mouth2", "hand1", "hand2"];
 
 const PART_CONFIG_DEFAULTS = {
-  tail: { base: 20, range: 5 },
-  body1: { base: 16, range: 4 },
-  body2: { base: 11, range: 4 },
-  body3: { base: 7, range: 3 },
-  body4: { base: 2, range: 3 },
+  tail: { base: -20, range: 5 },
+  body1: { base: -16, range: 4 },
+  body2: { base: -11, range: 4 },
+  body3: { base: -7, range: 3 },
+  body4: { base: -2, range: 3 },
   body5: { base: 0, range: 0 },
   chest: { base: 0, range: 0 },
   head: { base: 0, range: 0 },
-  leg1: { base: -35, range: 10 },
-  leg2: { base: -50, range: 15 },
+  leg1: { base: 5, range: 5 },
+  leg2: { base: 5, range: 5 },
+  mouth1: { base: 0, range: 0 },
+  mouth2: { base: 0, range: 0 },
+  hand1: { base: 0, range: 0 },
+  hand2: { base: 0, range: 0 },
 };
 
 const partConfig = Object.fromEntries(
@@ -264,6 +268,13 @@ async function main() {
         y: bodyWorldPivot[prev].y + (bodyOther[prev].y - 110),
       };
     }
+    const chestOffset = { ...bodyWorldPivot.chest };
+    for (const name of BODY_ORDER) {
+      bodyWorldPivot[name] = {
+        x: bodyWorldPivot[name].x - chestOffset.x,
+        y: bodyWorldPivot[name].y - chestOffset.y,
+      };
+    }
 
     // ── legs ────────────────────────────────────────────────────────────────
     const chestAnc = BODY_ANCHORS.chest;
@@ -304,6 +315,10 @@ async function main() {
     // ── head attachments (mouths, hands) ────────────────────────────────────
     const headAnc   = BODY_ANCHORS.head;
     const headAngle = bodyAngle.head;
+    const mouth1Angle = angleByConfig("mouth1", bodyT);
+    const mouth2Angle = angleByConfig("mouth2", bodyT);
+    const hand1Angle = angleByConfig("hand1", bodyT);
+    const hand2Angle = angleByConfig("hand2", bodyT);
 
     const mouth1InCanvas = rotateAnchor(headAnc.pivot, headAnc.mouth1, headAngle, 110);
     const mouth2InCanvas = rotateAnchor(headAnc.pivot, headAnc.mouth2, headAngle, 110);
@@ -315,8 +330,8 @@ async function main() {
       x: bodyWorldPivot.head.x + (mouth2InCanvas.x - 110),
       y: bodyWorldPivot.head.y + (mouth2InCanvas.y - 110),
     };
-    const mouth1Pos = { x: mouth1World.x - MOUTH1_ANCHOR.x, y: mouth1World.y - MOUTH1_ANCHOR.y };
-    const mouth2Pos = { x: mouth2World.x - MOUTH2_ANCHOR.x, y: mouth2World.y - MOUTH2_ANCHOR.y };
+    const mouth1Canvas = buildRotatedCanvas(images.mouth1, MOUTH1_ANCHOR, mouth1Angle, 140);
+    const mouth2Canvas = buildRotatedCanvas(images.mouth2, MOUTH2_ANCHOR, mouth2Angle, 140);
 
     const handRear  = [];
     const handFront = [];
@@ -327,14 +342,19 @@ async function main() {
         x: bodyWorldPivot.head.x + (handInCanvas.x - 110),
         y: bodyWorldPivot.head.y + (handInCanvas.y - 110),
       };
-      const h1Pos = { x: anchorWorld.x - HAND1_ANCHORS.top.x, y: anchorWorld.y - HAND1_ANCHORS.top.y };
-      const h1BottomWorld = { x: h1Pos.x + HAND1_ANCHORS.bottom.x, y: h1Pos.y + HAND1_ANCHORS.bottom.y };
-      const h2Pos = { x: h1BottomWorld.x - HAND2_ANCHORS.top.x, y: h1BottomWorld.y - HAND2_ANCHORS.top.y };
+      const hand1Canvas = buildRotatedCanvas(images.hand1, HAND1_ANCHORS.top, hand1Angle, 140);
+      const hand1OtherInCanvas = rotateAnchor(HAND1_ANCHORS.top, HAND1_ANCHORS.bottom, hand1Angle, 70);
+      const hand1PivotWorld = { ...anchorWorld };
+      const hand2PivotWorld = {
+        x: hand1PivotWorld.x + (hand1OtherInCanvas.x - 70),
+        y: hand1PivotWorld.y + (hand1OtherInCanvas.y - 70),
+      };
+      const hand2Canvas = buildRotatedCanvas(images.hand2, HAND2_ANCHORS.top, hand2Angle, 140);
 
       const target = idx === 0 ? handRear : handFront;
       target.push(
-        { img: images.hand1, pos: h1Pos },
-        { img: images.hand2, pos: h2Pos },
+        { canvas: hand1Canvas, pivotWorld: hand1PivotWorld, center: 70 },
+        { canvas: hand2Canvas, pivotWorld: hand2PivotWorld, center: 70 },
       );
     });
 
@@ -348,17 +368,17 @@ async function main() {
       drawOps.push({ canvas: item.canvas, x: item.pivotWorld.x - item.center, y: item.pivotWorld.y - item.center });
     }
     drawOps.push({ canvas: bodyCanvas.chest, x: bodyWorldPivot.chest.x - 110, y: bodyWorldPivot.chest.y - 110 });
-    drawOps.push({ img: images.mouth1, x: mouth1Pos.x, y: mouth1Pos.y });
-    drawOps.push({ img: images.mouth2, x: mouth2Pos.x, y: mouth2Pos.y });
+    drawOps.push({ canvas: mouth1Canvas, x: mouth1World.x - 70, y: mouth1World.y - 70 });
+    drawOps.push({ canvas: mouth2Canvas, x: mouth2World.x - 70, y: mouth2World.y - 70 });
     for (const item of handRear) {
-      drawOps.push({ img: item.img, x: item.pos.x, y: item.pos.y });
+      drawOps.push({ canvas: item.canvas, x: item.pivotWorld.x - item.center, y: item.pivotWorld.y - item.center });
     }
     drawOps.push({ canvas: bodyCanvas.head, x: bodyWorldPivot.head.x - 110, y: bodyWorldPivot.head.y - 110 });
     for (const item of frontLegs) {
       drawOps.push({ canvas: item.canvas, x: item.pivotWorld.x - item.center, y: item.pivotWorld.y - item.center });
     }
     for (const item of handFront) {
-      drawOps.push({ img: item.img, x: item.pos.x, y: item.pos.y });
+      drawOps.push({ canvas: item.canvas, x: item.pivotWorld.x - item.center, y: item.pivotWorld.y - item.center });
     }
 
     // ── bounding box ─────────────────────────────────────────────────────────
