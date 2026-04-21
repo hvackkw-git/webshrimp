@@ -1,2 +1,33 @@
-# webshrimp
-moving shrimp
+# Shrimp Web Demo
+
+## 파일 구성
+- `index.html`: 브라우저에서 바로 여는 진입 파일
+- `app.js`: 파츠 조립, 앵커 검증, 애니메이션, 레이어 처리
+- `assets/`: PNG 파츠 파일
+
+## 실행 방법
+정적 서버로 열면 됩니다.
+
+예시:
+- VS Code Live Server
+- `python -m http.server`
+
+그 다음 브라우저에서 `index.html`을 열면 됩니다.
+
+## 현재 레이어 규칙
+- `mouth1`, `mouth2`는 `head` 뒤
+- 다리 8개는 좌→우 기준으로 교차
+  - 1번째 체인: chest 뒤
+  - 2번째 체인: chest 앞
+  - 3번째 체인: chest 뒤
+  - 4번째 체인: chest 앞
+  - ...
+- 손 2개 체인은 파란 앵커 좌→우 기준
+  - 왼쪽 체인: head 뒤
+  - 오른쪽 체인: head 앞
+
+## 현재 움직임
+- 몸통: tail 진폭 5도, 앞쪽으로 갈수록 감소
+- leg1: 시계방향 25~35도
+- leg2: 시계방향 35~50도
+- 다리 8개는 위상차를 두고 물결치듯 순차적으로 움직임
