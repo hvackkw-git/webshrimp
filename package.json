@@ -1,0 +1,9 @@
+{
+  "name": "webshrimp",
+  "type": "module",
+  "scripts": {
+    "test:unit": "node --test tests/test_shrimp_movement.mjs",
+    "test:e2e": "npx playwright test",
+    "test": "npm run test:unit && npm run test:e2e"
+  }
+}
