@@ -4,17 +4,18 @@ import assert from 'node:assert/strict';
 // Constants mirrored from app.js
 const BODY_ORDER = ['tail', 'body1', 'body2', 'body3', 'body4', 'body5', 'chest', 'head'];
 
-const BODY_ANGLE_MAX = {
-  tail: 25, body1: 20, body2: 15, body3: 10, body4: 5, body5: 0, chest: 0, head: 0,
+const PART_CONFIG = {
+  tail: { base: 20, range: 5 },
+  body1: { base: 16, range: 4 },
+  body2: { base: 11, range: 4 },
+  body3: { base: 7, range: 3 },
+  body4: { base: 2, range: 3 },
+  body5: { base: 0, range: 0 },
+  chest: { base: 0, range: 0 },
+  head: { base: 0, range: 0 },
+  leg1: { base: -35, range: 10 },
+  leg2: { base: -50, range: 15 },
 };
-const BODY_ANGLE_MIN = {
-  tail: 20, body1: 16, body2: 11, body3: 7, body4: 2, body5: 0, chest: 0, head: 0,
-};
-
-const LEG1_MIN = -35;
-const LEG1_MAX = -25;
-const LEG2_MIN = -50;
-const LEG2_MAX = -35;
 const LEG_PHASE_STEP = Math.PI / 4;
 
 function lerp(a, b, t) {
@@ -27,16 +28,19 @@ function bodyT(tSec) {
 }
 
 function bodyAngle(name, tSec) {
-  return lerp(BODY_ANGLE_MAX[name], BODY_ANGLE_MIN[name], bodyT(tSec));
+  const { base, range } = PART_CONFIG[name];
+  return lerp(base, base + range, bodyT(tSec));
 }
 
 function legAngles(legIndex, tSec) {
   const phase = tSec * 2.5;
   const legPhase = phase - legIndex * LEG_PHASE_STEP;
   const legT = (1 - Math.cos(legPhase)) / 2;
+  const { base: leg1Base, range: leg1Range } = PART_CONFIG.leg1;
+  const { base: leg2Base, range: leg2Range } = PART_CONFIG.leg2;
   return {
-    leg1: lerp(LEG1_MAX, LEG1_MIN, legT),
-    leg2: lerp(LEG2_MAX, LEG2_MIN, legT),
+    leg1: lerp(leg1Base, leg1Base + leg1Range, legT),
+    leg2: lerp(leg2Base, leg2Base + leg2Range, legT),
   };
 }
 
@@ -91,8 +95,8 @@ describe('bodyT oscillation', () => {
 describe('body angle bounds', () => {
   test('every body part stays within its configured [MIN, MAX] range', () => {
     for (const name of BODY_ORDER) {
-      const lo = Math.min(BODY_ANGLE_MIN[name], BODY_ANGLE_MAX[name]);
-      const hi = Math.max(BODY_ANGLE_MIN[name], BODY_ANGLE_MAX[name]);
+      const lo = Math.min(PART_CONFIG[name].base, PART_CONFIG[name].base + PART_CONFIG[name].range);
+      const hi = Math.max(PART_CONFIG[name].base, PART_CONFIG[name].base + PART_CONFIG[name].range);
       for (let t = 0; t <= 5; t += 0.05) {
         const angle = bodyAngle(name, t);
         assert.ok(
@@ -109,8 +113,8 @@ describe('body angle bounds', () => {
     const lo = Math.min(...samples);
     const hi = Math.max(...samples);
     assert.ok(
-      Math.abs(lo - BODY_ANGLE_MIN.tail) < 0.1 && Math.abs(hi - BODY_ANGLE_MAX.tail) < 0.1,
-      `Tail only swept [${lo}, ${hi}], expected [${BODY_ANGLE_MIN.tail}, ${BODY_ANGLE_MAX.tail}]`,
+      Math.abs(lo - PART_CONFIG.tail.base) < 0.1 && Math.abs(hi - (PART_CONFIG.tail.base + PART_CONFIG.tail.range)) < 0.1,
+      `Tail only swept [${lo}, ${hi}], expected [${PART_CONFIG.tail.base}, ${PART_CONFIG.tail.base + PART_CONFIG.tail.range}]`,
     );
   });
 
@@ -129,8 +133,8 @@ describe('body angle bounds', () => {
   });
 
   test('tail amplitude is strictly larger than body4 amplitude', () => {
-    const tailRange = BODY_ANGLE_MAX.tail - BODY_ANGLE_MIN.tail;
-    const body4Range = BODY_ANGLE_MAX.body4 - BODY_ANGLE_MIN.body4;
+    const tailRange = PART_CONFIG.tail.range;
+    const body4Range = PART_CONFIG.body4.range;
     assert.ok(tailRange > body4Range, `Expected tail range (${tailRange}) > body4 range (${body4Range})`);
   });
 
@@ -149,8 +153,8 @@ describe('body angle bounds', () => {
     for (let i = 0; i < movingParts.length - 1; i++) {
       const curr = movingParts[i];
       const next = movingParts[i + 1];
-      const currRange = BODY_ANGLE_MAX[curr] - BODY_ANGLE_MIN[curr];
-      const nextRange = BODY_ANGLE_MAX[next] - BODY_ANGLE_MIN[next];
+      const currRange = PART_CONFIG[curr].range;
+      const nextRange = PART_CONFIG[next].range;
       assert.ok(currRange >= nextRange, `${curr} range (${currRange}) should be >= ${next} range (${nextRange})`);
     }
   });
@@ -160,24 +164,28 @@ describe('body angle bounds', () => {
 
 describe('leg movement', () => {
   test('leg1 angles stay within [LEG1_MIN, LEG1_MAX] for all legs', () => {
+    const leg1Min = Math.min(PART_CONFIG.leg1.base, PART_CONFIG.leg1.base + PART_CONFIG.leg1.range);
+    const leg1Max = Math.max(PART_CONFIG.leg1.base, PART_CONFIG.leg1.base + PART_CONFIG.leg1.range);
     for (let i = 0; i < 4; i++) {
       for (let t = 0; t <= 5; t += 0.05) {
         const { leg1 } = legAngles(i, t);
         assert.ok(
-          leg1 >= LEG1_MIN - 1e-10 && leg1 <= LEG1_MAX + 1e-10,
-          `Leg ${i} leg1=${leg1} outside [${LEG1_MIN}, ${LEG1_MAX}] at t=${t}`,
+          leg1 >= leg1Min - 1e-10 && leg1 <= leg1Max + 1e-10,
+          `Leg ${i} leg1=${leg1} outside [${leg1Min}, ${leg1Max}] at t=${t}`,
         );
       }
     }
   });
 
   test('leg2 angles stay within [LEG2_MIN, LEG2_MAX] for all legs', () => {
+    const leg2Min = Math.min(PART_CONFIG.leg2.base, PART_CONFIG.leg2.base + PART_CONFIG.leg2.range);
+    const leg2Max = Math.max(PART_CONFIG.leg2.base, PART_CONFIG.leg2.base + PART_CONFIG.leg2.range);
     for (let i = 0; i < 4; i++) {
       for (let t = 0; t <= 5; t += 0.05) {
         const { leg2 } = legAngles(i, t);
         assert.ok(
-          leg2 >= LEG2_MIN - 1e-10 && leg2 <= LEG2_MAX + 1e-10,
-          `Leg ${i} leg2=${leg2} outside [${LEG2_MIN}, ${LEG2_MAX}] at t=${t}`,
+          leg2 >= leg2Min - 1e-10 && leg2 <= leg2Max + 1e-10,
+          `Leg ${i} leg2=${leg2} outside [${leg2Min}, ${leg2Max}] at t=${t}`,
         );
       }
     }
@@ -208,8 +216,8 @@ describe('leg movement', () => {
       const lo = Math.min(...samples);
       const hi = Math.max(...samples);
       assert.ok(
-        Math.abs(lo - LEG1_MIN) < 0.1 && Math.abs(hi - LEG1_MAX) < 0.1,
-        `Leg ${i} only swept leg1=[${lo}, ${hi}], expected [${LEG1_MIN}, ${LEG1_MAX}]`,
+        Math.abs(lo - PART_CONFIG.leg1.base) < 0.1 && Math.abs(hi - (PART_CONFIG.leg1.base + PART_CONFIG.leg1.range)) < 0.1,
+        `Leg ${i} only swept leg1=[${lo}, ${hi}], expected [${PART_CONFIG.leg1.base}, ${PART_CONFIG.leg1.base + PART_CONFIG.leg1.range}]`,
       );
     }
   });

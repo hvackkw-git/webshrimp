@@ -1,34 +1,30 @@
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 
+const partsGrid = document.getElementById("partsGrid");
+const configText = document.getElementById("configText");
+const applyConfigBtn = document.getElementById("applyConfig");
+const configStatus = document.getElementById("configStatus");
+
 const BODY_ORDER = ["tail", "body1", "body2", "body3", "body4", "body5", "chest", "head"];
+const PART_ORDER = [...BODY_ORDER, "leg1", "leg2"];
 
-const BODY_ANGLE_MAX = {
-  tail: 25,
-  body1: 20,
-  body2: 15,
-  body3: 10,
-  body4: 5,
-  body5: 0,
-  chest: 0,
-  head: 0,
+const PART_CONFIG_DEFAULTS = {
+  tail: { base: 20, range: 5 },
+  body1: { base: 16, range: 4 },
+  body2: { base: 11, range: 4 },
+  body3: { base: 7, range: 3 },
+  body4: { base: 2, range: 3 },
+  body5: { base: 0, range: 0 },
+  chest: { base: 0, range: 0 },
+  head: { base: 0, range: 0 },
+  leg1: { base: -35, range: 10 },
+  leg2: { base: -50, range: 15 },
 };
 
-const BODY_ANGLE_MIN = {
-  tail: 20,
-  body1: 16,
-  body2: 11,
-  body3: 7,
-  body4: 2,
-  body5: 0,
-  chest: 0,
-  head: 0,
-};
-
-const LEG1_MIN = -35;
-const LEG1_MAX = -25;
-const LEG2_MIN = -50;
-const LEG2_MAX = -35;
+const partConfig = Object.fromEntries(
+  PART_ORDER.map(name => [name, { ...PART_CONFIG_DEFAULTS[name] }]),
+);
 
 const LEG_PHASE_STEP = Math.PI / 4;
 
@@ -86,6 +82,128 @@ function loadImage(src) {
   });
 }
 
+function normalizeNumber(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1000) / 1000;
+}
+
+function formatNumber(value) {
+  const n = normalizeNumber(value);
+  if (Number.isInteger(n)) return String(n);
+  return String(n);
+}
+
+function buildConfigText() {
+  return PART_ORDER.map(name => {
+    const conf = partConfig[name];
+    return `${name} = (${formatNumber(conf.base)}, ${formatNumber(conf.range)});`;
+  }).join("\n");
+}
+
+function setStatus(message, isError = false) {
+  configStatus.textContent = message;
+  configStatus.style.color = isError ? "#ff8383" : "#a7ffad";
+}
+
+function parseConfigText(rawText) {
+  const lines = rawText
+    .split(";")
+    .map(v => v.trim())
+    .filter(Boolean);
+
+  const nextConfig = Object.fromEntries(
+    PART_ORDER.map(name => [name, { ...partConfig[name] }]),
+  );
+
+  const seen = new Set();
+  for (const line of lines) {
+    const match = line.match(/^([a-zA-Z0-9_]+)\s*=\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/);
+    if (!match) {
+      throw new Error(`형식 오류: ${line};`);
+    }
+
+    const [, name, baseRaw, rangeRaw] = match;
+    if (!(name in nextConfig)) {
+      throw new Error(`알 수 없는 파츠: ${name}`);
+    }
+    if (seen.has(name)) {
+      throw new Error(`중복 파츠: ${name}`);
+    }
+
+    seen.add(name);
+    nextConfig[name] = {
+      base: normalizeNumber(Number(baseRaw)),
+      range: normalizeNumber(Number(rangeRaw)),
+    };
+  }
+
+  return nextConfig;
+}
+
+function angleByConfig(name, tValue) {
+  const conf = partConfig[name];
+  return lerp(conf.base, conf.base + conf.range, tValue);
+}
+
+function syncTextFromConfig() {
+  configText.value = buildConfigText();
+}
+
+function syncInputsFromConfig() {
+  for (const name of PART_ORDER) {
+    const baseInput = document.getElementById(`base-${name}`);
+    const rangeInput = document.getElementById(`range-${name}`);
+    if (!baseInput || !rangeInput) continue;
+    baseInput.value = formatNumber(partConfig[name].base);
+    rangeInput.value = formatNumber(partConfig[name].range);
+  }
+}
+
+function renderConfigInputs() {
+  for (const name of PART_ORDER) {
+    const row = document.createElement("label");
+    row.className = "part-row";
+    row.innerHTML = `
+      <span>${name}</span>
+      <input id="base-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].base)}" aria-label="${name} base" />
+      <input id="range-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].range)}" aria-label="${name} range" />
+    `;
+    partsGrid.appendChild(row);
+  }
+
+  partsGrid.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+
+    const idMatch = target.id.match(/^(base|range)-(.+)$/);
+    if (!idMatch) return;
+
+    const [, field, name] = idMatch;
+    if (!(name in partConfig)) return;
+
+    const value = normalizeNumber(Number(target.value));
+    if (!Number.isFinite(value)) return;
+
+    partConfig[name][field] = value;
+    syncTextFromConfig();
+    setStatus("입력값이 즉시 반영되었습니다.");
+  });
+}
+
+function applyTextConfig() {
+  try {
+    const parsed = parseConfigText(configText.value);
+    for (const name of PART_ORDER) {
+      partConfig[name] = parsed[name];
+    }
+    syncInputsFromConfig();
+    syncTextFromConfig();
+    setStatus("텍스트 설정을 반영했습니다.");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 // Rotate `img` so that `pivot` lands exactly at the canvas centre.
 function buildRotatedCanvas(img, pivot, angleDeg, canvasSize) {
   const off = document.createElement("canvas");
@@ -112,6 +230,11 @@ function rotateAnchor(pivot, anchor, angleDeg, half) {
 }
 
 async function main() {
+  renderConfigInputs();
+  syncTextFromConfig();
+  setStatus("기본 설정 로드 완료");
+  applyConfigBtn.addEventListener("click", applyTextConfig);
+
   const images = {};
   for (const name of assetNames) {
     images[name] = await loadImage(`./assets/${name}.png`);
@@ -128,7 +251,7 @@ async function main() {
     const bodyWorldPivot = { tail: { x: 0, y: 0 } };
 
     for (const name of BODY_ORDER) {
-      const angle = lerp(BODY_ANGLE_MAX[name], BODY_ANGLE_MIN[name], bodyT);
+      const angle = angleByConfig(name, bodyT);
       const anc = BODY_ANCHORS[name];
       bodyAngle[name]  = angle;
       bodyCanvas[name] = buildRotatedCanvas(images[name], anc.pivot, angle, 220);
@@ -162,8 +285,8 @@ async function main() {
     chestAnchorWorld.forEach((anchorWorld, i) => {
       const legPhase = phase - i * LEG_PHASE_STEP;
       const legT = (1 - Math.cos(legPhase)) / 2;
-      const leg1Angle = lerp(LEG1_MAX, LEG1_MIN, legT);
-      const leg2Angle = lerp(LEG2_MAX, LEG2_MIN, legT);
+      const leg1Angle = angleByConfig("leg1", legT);
+      const leg2Angle = angleByConfig("leg2", legT);
 
       const leg1Canvas = buildRotatedCanvas(images.leg1, LEG1_ANCHORS.top, leg1Angle, 140);
       const leg2Canvas = buildRotatedCanvas(images.leg2, LEG2_ANCHORS.top, leg2Angle, 140);
