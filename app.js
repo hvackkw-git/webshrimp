@@ -89,7 +89,6 @@ function normalizeNumber(value) {
 
 function formatNumber(value) {
   const n = normalizeNumber(value);
-  if (Number.isInteger(n)) return String(n);
   return String(n);
 }
 
@@ -181,10 +180,7 @@ function renderConfigInputs() {
     const [, field, name] = idMatch;
     if (!(name in partConfig)) return;
 
-    const value = normalizeNumber(Number(target.value));
-    if (!Number.isFinite(value)) return;
-
-    partConfig[name][field] = value;
+    partConfig[name][field] = normalizeNumber(Number(target.value));
     syncTextFromConfig();
     setStatus("입력값이 즉시 반영되었습니다.");
   });
