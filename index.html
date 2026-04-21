@@ -19,6 +19,70 @@
       padding: 24px;
       box-sizing: border-box;
     }
+    .controls {
+      width: min(92vw, 1100px);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      padding: 14px;
+      box-sizing: border-box;
+      display: grid;
+      gap: 10px;
+    }
+    .controls h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .parts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+    }
+    .part-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .part-row input, .config-box textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(0,0,0,0.3);
+      color: #eee;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: inherit;
+    }
+    .config-box {
+      display: grid;
+      gap: 8px;
+    }
+    .config-box textarea {
+      min-height: 180px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+    }
+    .config-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .config-actions button {
+      background: #2a63ff;
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .config-status {
+      font-size: 13px;
+      opacity: 0.9;
+    }
     canvas {
       image-rendering: pixelated;
       image-rendering: crisp-edges;
@@ -43,6 +107,17 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="controls">
+      <h2>파츠 각도 설정 (기본각도, 가동범위)</h2>
+      <div id="partsGrid" class="parts-grid"></div>
+      <div class="config-box">
+        <textarea id="configText" aria-label="parts config text"></textarea>
+        <div class="config-actions">
+          <button id="applyConfig" type="button">텍스트 반영</button>
+          <span id="configStatus" class="config-status"></span>
+        </div>
+      </div>
+    </div>
     <canvas id="view" width="900" height="500"></canvas>
     <div class="meta">
       body: tail amplitude 5° and gradually decreasing<br />
