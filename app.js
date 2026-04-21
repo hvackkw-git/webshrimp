@@ -88,6 +88,7 @@ function buildRotatedCanvas(img, pivot, angleDeg, canvasSize) {
   off.width = canvasSize;
   off.height = canvasSize;
   const oc = off.getContext("2d", { willReadFrequently: true });
+  oc.imageSmoothingEnabled = false;
 
   const cx = canvasSize / 2;
   const cy = canvasSize / 2;
