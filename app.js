@@ -10,27 +10,28 @@ const BODY_ORDER = ["tail", "body1", "body2", "body3", "body4", "body5", "chest"
 const PART_ORDER = [...BODY_ORDER, "leg1", "leg2", "mouth1", "mouth2", "hand1", "hand2"];
 
 const PART_CONFIG_DEFAULTS = {
-  tail: { base: -20, range: 5 },
-  body1: { base: -16, range: 4 },
-  body2: { base: -11, range: 4 },
-  body3: { base: -7, range: 3 },
-  body4: { base: -2, range: 3 },
-  body5: { base: 0, range: 0 },
-  chest: { base: 0, range: 0 },
-  head: { base: 0, range: 0 },
-  leg1: { base: 5, range: 5 },
-  leg2: { base: 5, range: 5 },
-  mouth1: { base: 0, range: 0 },
-  mouth2: { base: 0, range: 0 },
-  hand1: { base: 0, range: 0 },
-  hand2: { base: 0, range: 0 },
+  tail: { base: -20, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
+  body1: { base: -16, range: 4, forwardSpeed: 4, backwardSpeed: 5 },
+  body2: { base: -11, range: 4, forwardSpeed: 4, backwardSpeed: 5 },
+  body3: { base: -7, range: 3, forwardSpeed: 4, backwardSpeed: 5 },
+  body4: { base: -2, range: 3, forwardSpeed: 4, backwardSpeed: 5 },
+  body5: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  chest: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  head: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  leg1: { base: 5, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
+  leg2: { base: 5, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
+  mouth1: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  mouth2: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  hand1: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  hand2: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
 };
 
 const partConfig = Object.fromEntries(
   PART_ORDER.map(name => [name, { ...PART_CONFIG_DEFAULTS[name] }]),
 );
 
-const LEG_PHASE_STEP = Math.PI / 4;
+const LEG_TIME_OFFSET = (Math.PI / 4) / 2.5;
+const MIN_SPEED = 0.001;
 
 // Anchor pixel coordinates (x, y in image space) extracted from each PNG.
 // Stored here so that recolouring the sprite sheets won't break joint positions.
@@ -99,7 +100,7 @@ function formatNumber(value) {
 function buildConfigText() {
   return PART_ORDER.map(name => {
     const conf = partConfig[name];
-    return `${name} = (${formatNumber(conf.base)}, ${formatNumber(conf.range)});`;
+    return `${name} = (${formatNumber(conf.base)}, ${formatNumber(conf.range)}),(${formatNumber(conf.forwardSpeed)}, ${formatNumber(conf.backwardSpeed)});`;
   }).join("\n");
 }
 
@@ -119,13 +120,17 @@ function parseConfigText(rawText) {
   );
 
   const seen = new Set();
+  const numberPattern = "-?\\d+(?:\\.\\d+)?";
+  const configLinePattern = new RegExp(
+    `^([a-zA-Z0-9_]+)\\s*=\\s*\\(\\s*(${numberPattern})\\s*,\\s*(${numberPattern})\\s*\\)\\s*(?:,\\s*\\(\\s*(${numberPattern})\\s*,\\s*(${numberPattern})\\s*\\))?$`,
+  );
   for (const line of lines) {
-    const match = line.match(/^([a-zA-Z0-9_]+)\s*=\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/);
+    const match = line.match(configLinePattern);
     if (!match) {
       throw new Error(`형식 오류: ${line};`);
     }
 
-    const [, name, baseRaw, rangeRaw] = match;
+    const [, name, baseRaw, rangeRaw, forwardSpeedRaw, backwardSpeedRaw] = match;
     if (!(name in nextConfig)) {
       throw new Error(`알 수 없는 파츠: ${name}`);
     }
@@ -134,9 +139,18 @@ function parseConfigText(rawText) {
     }
 
     seen.add(name);
+    const forwardSpeed = forwardSpeedRaw === undefined
+      ? PART_CONFIG_DEFAULTS[name].forwardSpeed
+      : Number(forwardSpeedRaw);
+    const backwardSpeed = backwardSpeedRaw === undefined
+      ? PART_CONFIG_DEFAULTS[name].backwardSpeed
+      : Number(backwardSpeedRaw);
+
     nextConfig[name] = {
       base: normalizeNumber(Number(baseRaw)),
       range: normalizeNumber(Number(rangeRaw)),
+      forwardSpeed: normalizeNumber(forwardSpeed),
+      backwardSpeed: normalizeNumber(backwardSpeed),
     };
   }
 
@@ -148,6 +162,23 @@ function angleByConfig(name, tValue) {
   return lerp(conf.base, conf.base + conf.range, tValue);
 }
 
+function travelProgressByConfig(conf, tSec) {
+  const amplitude = Math.abs(conf.range);
+  if (amplitude === 0) return 0;
+
+  const forwardSpeed = Math.max(Math.abs(conf.forwardSpeed), MIN_SPEED);
+  const backwardSpeed = Math.max(Math.abs(conf.backwardSpeed), MIN_SPEED);
+  const forwardDuration = amplitude / forwardSpeed;
+  const backwardDuration = amplitude / backwardSpeed;
+  const cycleDuration = forwardDuration + backwardDuration;
+  const cycleT = ((tSec % cycleDuration) + cycleDuration) % cycleDuration;
+
+  if (cycleT <= forwardDuration) {
+    return cycleT / forwardDuration;
+  }
+  return 1 - (cycleT - forwardDuration) / backwardDuration;
+}
+
 function syncTextFromConfig() {
   configText.value = buildConfigText();
 }
@@ -156,13 +187,28 @@ function syncInputsFromConfig() {
   for (const name of PART_ORDER) {
     const baseInput = document.getElementById(`base-${name}`);
     const rangeInput = document.getElementById(`range-${name}`);
-    if (!baseInput || !rangeInput) continue;
+    const forwardSpeedInput = document.getElementById(`forwardSpeed-${name}`);
+    const backwardSpeedInput = document.getElementById(`backwardSpeed-${name}`);
+    if (!baseInput || !rangeInput || !forwardSpeedInput || !backwardSpeedInput) continue;
     baseInput.value = formatNumber(partConfig[name].base);
     rangeInput.value = formatNumber(partConfig[name].range);
+    forwardSpeedInput.value = formatNumber(partConfig[name].forwardSpeed);
+    backwardSpeedInput.value = formatNumber(partConfig[name].backwardSpeed);
   }
 }
 
 function renderConfigInputs() {
+  const header = document.createElement("div");
+  header.className = "part-row part-row-head";
+  header.innerHTML = `
+    <span>part</span>
+    <span>base</span>
+    <span>range</span>
+    <span>forward</span>
+    <span>backward</span>
+  `;
+  partsGrid.appendChild(header);
+
   for (const name of PART_ORDER) {
     const row = document.createElement("label");
     row.className = "part-row";
@@ -170,6 +216,8 @@ function renderConfigInputs() {
       <span>${name}</span>
       <input id="base-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].base)}" aria-label="${name} base" />
       <input id="range-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].range)}" aria-label="${name} range" />
+      <input id="forwardSpeed-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].forwardSpeed)}" aria-label="${name} forward speed" />
+      <input id="backwardSpeed-${name}" type="number" step="0.1" value="${formatNumber(partConfig[name].backwardSpeed)}" aria-label="${name} backward speed" />
     `;
     partsGrid.appendChild(row);
   }
@@ -178,7 +226,7 @@ function renderConfigInputs() {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
 
-    const idMatch = target.id.match(/^(base|range)-(.+)$/);
+    const idMatch = target.id.match(/^(base|range|forwardSpeed|backwardSpeed)-(.+)$/);
     if (!idMatch) return;
 
     const [, field, name] = idMatch;
@@ -241,9 +289,6 @@ async function main() {
   }
 
   function buildFrame(tSec) {
-    const phase = tSec * 2.5;
-    const bodyT = (1 - Math.cos(phase)) / 2;
-
     // ── body chain ──────────────────────────────────────────────────────────
     const bodyCanvas = {};
     const bodyAngle  = {};
@@ -251,7 +296,7 @@ async function main() {
     const bodyWorldPivot = { tail: { x: 0, y: 0 } };
 
     for (const name of BODY_ORDER) {
-      const angle = angleByConfig(name, bodyT);
+      const angle = angleByConfig(name, travelProgressByConfig(partConfig[name], tSec));
       const anc = BODY_ANCHORS[name];
       bodyAngle[name]  = angle;
       bodyCanvas[name] = buildRotatedCanvas(images[name], anc.pivot, angle, 220);
@@ -290,10 +335,10 @@ async function main() {
     const frontLegs = [];
 
     chestAnchorWorld.forEach((anchorWorld, i) => {
-      const legPhase = phase - i * LEG_PHASE_STEP;
-      const legT = (1 - Math.cos(legPhase)) / 2;
+      const legTime = tSec - i * LEG_TIME_OFFSET;
+      const legT = travelProgressByConfig(partConfig.leg1, legTime);
       const leg1Angle = angleByConfig("leg1", legT);
-      const leg2Angle = angleByConfig("leg2", legT);
+      const leg2Angle = angleByConfig("leg2", travelProgressByConfig(partConfig.leg2, legTime));
 
       const leg1Canvas = buildRotatedCanvas(images.leg1, LEG1_ANCHORS.top, leg1Angle, 140);
       const leg2Canvas = buildRotatedCanvas(images.leg2, LEG2_ANCHORS.top, leg2Angle, 140);
@@ -315,10 +360,10 @@ async function main() {
     // ── head attachments (mouths, hands) ────────────────────────────────────
     const headAnc   = BODY_ANCHORS.head;
     const headAngle = bodyAngle.head;
-    const mouth1Angle = angleByConfig("mouth1", bodyT);
-    const mouth2Angle = angleByConfig("mouth2", bodyT);
-    const hand1Angle = angleByConfig("hand1", bodyT);
-    const hand2Angle = angleByConfig("hand2", bodyT);
+    const mouth1Angle = angleByConfig("mouth1", travelProgressByConfig(partConfig.mouth1, tSec));
+    const mouth2Angle = angleByConfig("mouth2", travelProgressByConfig(partConfig.mouth2, tSec));
+    const hand1Angle = angleByConfig("hand1", travelProgressByConfig(partConfig.hand1, tSec));
+    const hand2Angle = angleByConfig("hand2", travelProgressByConfig(partConfig.hand2, tSec));
 
     const mouth1InCanvas = rotateAnchor(headAnc.pivot, headAnc.mouth1, headAngle, 110);
     const mouth2InCanvas = rotateAnchor(headAnc.pivot, headAnc.mouth2, headAngle, 110);

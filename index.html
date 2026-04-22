@@ -40,10 +40,15 @@
     }
     .part-row {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: minmax(72px, 1.2fr) repeat(4, minmax(0, 1fr));
       gap: 6px;
       align-items: center;
       font-size: 13px;
+    }
+    .part-row-head {
+      font-weight: 600;
+      opacity: 0.8;
+      padding: 0 2px;
     }
     .part-row input, .config-box textarea {
       width: 100%;
@@ -108,7 +113,7 @@
 <body>
   <div class="wrap">
     <div class="controls">
-      <h2>파츠 각도 설정 (기본각도, 가동범위)</h2>
+      <h2>파츠 설정 (기본각도, 가동범위, 갈때속도, 돌아올때속도)</h2>
       <div id="partsGrid" class="parts-grid"></div>
       <div class="config-box">
         <textarea id="configText" aria-label="parts config text"></textarea>
