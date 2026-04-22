@@ -135,11 +135,18 @@ function parseConfigText(rawText) {
     }
 
     seen.add(name);
+    const forwardSpeed = forwardSpeedRaw === undefined
+      ? nextConfig[name].forwardSpeed
+      : Number(forwardSpeedRaw);
+    const backwardSpeed = backwardSpeedRaw === undefined
+      ? nextConfig[name].backwardSpeed
+      : Number(backwardSpeedRaw);
+
     nextConfig[name] = {
       base: normalizeNumber(Number(baseRaw)),
       range: normalizeNumber(Number(rangeRaw)),
-      forwardSpeed: normalizeNumber(Number(forwardSpeedRaw ?? nextConfig[name].forwardSpeed)),
-      backwardSpeed: normalizeNumber(Number(backwardSpeedRaw ?? nextConfig[name].backwardSpeed)),
+      forwardSpeed: normalizeNumber(forwardSpeed),
+      backwardSpeed: normalizeNumber(backwardSpeed),
     };
   }
 
@@ -193,8 +200,8 @@ function renderConfigInputs() {
     <span>part</span>
     <span>base</span>
     <span>range</span>
-    <span>go</span>
-    <span>back</span>
+    <span>forward</span>
+    <span>backward</span>
   `;
   partsGrid.appendChild(header);
 
