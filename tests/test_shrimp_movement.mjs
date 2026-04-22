@@ -5,42 +5,55 @@ import assert from 'node:assert/strict';
 const BODY_ORDER = ['tail', 'body1', 'body2', 'body3', 'body4', 'body5', 'chest', 'head'];
 
 const PART_CONFIG = {
-  tail: { base: -20, range: 5 },
-  body1: { base: -16, range: 4 },
-  body2: { base: -11, range: 4 },
-  body3: { base: -7, range: 3 },
-  body4: { base: -2, range: 3 },
-  body5: { base: 0, range: 0 },
-  chest: { base: 0, range: 0 },
-  head: { base: 0, range: 0 },
-  leg1: { base: 5, range: 5 },
-  leg2: { base: 5, range: 5 },
+  tail: { base: -20, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
+  body1: { base: -16, range: 4, forwardSpeed: 4, backwardSpeed: 5 },
+  body2: { base: -11, range: 4, forwardSpeed: 4, backwardSpeed: 5 },
+  body3: { base: -7, range: 3, forwardSpeed: 4, backwardSpeed: 5 },
+  body4: { base: -2, range: 3, forwardSpeed: 4, backwardSpeed: 5 },
+  body5: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  chest: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  head: { base: 0, range: 0, forwardSpeed: 4, backwardSpeed: 5 },
+  leg1: { base: 5, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
+  leg2: { base: 5, range: 5, forwardSpeed: 4, backwardSpeed: 5 },
 };
-const LEG_PHASE_STEP = Math.PI / 4;
+const LEG_TIME_OFFSET = (Math.PI / 4) / 2.5;
+const MIN_SPEED = 0.001;
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-function bodyT(tSec) {
-  const phase = tSec * 2.5;
-  return (1 - Math.cos(phase)) / 2;
+function travelProgress(conf, tSec) {
+  const amplitude = Math.abs(conf.range);
+  if (amplitude === 0) return 0;
+
+  const forwardSpeed = Math.max(Math.abs(conf.forwardSpeed), MIN_SPEED);
+  const backwardSpeed = Math.max(Math.abs(conf.backwardSpeed), MIN_SPEED);
+  const forwardDuration = amplitude / forwardSpeed;
+  const backwardDuration = amplitude / backwardSpeed;
+  const cycleDuration = forwardDuration + backwardDuration;
+  const cycleT = ((tSec % cycleDuration) + cycleDuration) % cycleDuration;
+
+  if (cycleT <= forwardDuration) {
+    return cycleT / forwardDuration;
+  }
+  return 1 - (cycleT - forwardDuration) / backwardDuration;
 }
 
 function bodyAngle(name, tSec) {
-  const { base, range } = PART_CONFIG[name];
-  return lerp(base, base + range, bodyT(tSec));
+  const conf = PART_CONFIG[name];
+  return lerp(conf.base, conf.base + conf.range, travelProgress(conf, tSec));
 }
 
 function legAngles(legIndex, tSec) {
-  const phase = tSec * 2.5;
-  const legPhase = phase - legIndex * LEG_PHASE_STEP;
-  const legT = (1 - Math.cos(legPhase)) / 2;
+  const legTime = tSec - legIndex * LEG_TIME_OFFSET;
+  const leg1T = travelProgress(PART_CONFIG.leg1, legTime);
+  const leg2T = travelProgress(PART_CONFIG.leg2, legTime);
   const { base: leg1Base, range: leg1Range } = PART_CONFIG.leg1;
   const { base: leg2Base, range: leg2Range } = PART_CONFIG.leg2;
   return {
-    leg1: lerp(leg1Base, leg1Base + leg1Range, legT),
-    leg2: lerp(leg2Base, leg2Base + leg2Range, legT),
+    leg1: lerp(leg1Base, leg1Base + leg1Range, leg1T),
+    leg2: lerp(leg2Base, leg2Base + leg2Range, leg2T),
   };
 }
 
@@ -65,28 +78,29 @@ describe('lerp', () => {
   });
 });
 
-// ─── bodyT oscillation ───────────────────────────────────────────────────────
+// ─── travelProgress oscillation ──────────────────────────────────────────────
 
-describe('bodyT oscillation', () => {
+describe('travelProgress oscillation', () => {
   test('stays within [0, 1] across a 10-second window', () => {
     for (let t = 0; t <= 10; t += 0.05) {
-      const v = bodyT(t);
+      const v = travelProgress(PART_CONFIG.tail, t);
       assert.ok(v >= 0 && v <= 1, `bodyT=${v} out of [0,1] at t=${t}`);
     }
   });
 
-  test('is 0 at phase 0 (t=0)', () => {
-    assert.equal(bodyT(0), 0);
+  test('starts at 0 at t=0', () => {
+    assert.equal(travelProgress(PART_CONFIG.tail, 0), 0);
   });
 
-  test('reaches 1 at phase π (t=π/2.5)', () => {
-    const tAtPi = Math.PI / 2.5;
-    assert.ok(Math.abs(bodyT(tAtPi) - 1) < 1e-10);
+  test('reaches 1 at the end of forward phase', () => {
+    const tAtPeak = Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.forwardSpeed;
+    assert.ok(Math.abs(travelProgress(PART_CONFIG.tail, tAtPeak) - 1) < 1e-10);
   });
 
-  test('returns to 0 after one full cycle', () => {
-    const period = (2 * Math.PI) / 2.5;
-    assert.ok(Math.abs(bodyT(period)) < 1e-10);
+  test('returns to 0 after one full go/back cycle', () => {
+    const period = Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.forwardSpeed
+      + Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.backwardSpeed;
+    assert.ok(Math.abs(travelProgress(PART_CONFIG.tail, period)) < 1e-10);
   });
 });
 
@@ -138,14 +152,13 @@ describe('body angle bounds', () => {
     assert.ok(tailRange > body4Range, `Expected tail range (${tailRange}) > body4 range (${body4Range})`);
   });
 
-  test('animation is periodic - same angle after one full cycle', () => {
-    const period = (2 * Math.PI) / 2.5;
+  test('tail is periodic - same angle after one full cycle', () => {
+    const period = Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.forwardSpeed
+      + Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.backwardSpeed;
     const t0 = 1.0;
-    for (const name of BODY_ORDER) {
-      const before = bodyAngle(name, t0);
-      const after = bodyAngle(name, t0 + period);
-      assert.ok(Math.abs(before - after) < 1e-10, `${name} not periodic: ${before} vs ${after}`);
-    }
+    const before = bodyAngle('tail', t0);
+    const after = bodyAngle('tail', t0 + period);
+    assert.ok(Math.abs(before - after) < 1e-10, `tail not periodic: ${before} vs ${after}`);
   });
 
   test('decreasing amplitude from tail toward chest', () => {
@@ -193,12 +206,11 @@ describe('leg movement', () => {
 
   test('consecutive legs have phase offset of exactly LEG_PHASE_STEP', () => {
     const tSec = 0.3;
-    const phase = tSec * 2.5;
     for (let i = 0; i < 3; i++) {
-      const phaseI = phase - i * LEG_PHASE_STEP;
-      const phaseJ = phase - (i + 1) * LEG_PHASE_STEP;
-      const diff = Math.abs(phaseI - phaseJ);
-      assert.ok(Math.abs(diff - LEG_PHASE_STEP) < 1e-10);
+      const legTimeI = tSec - i * LEG_TIME_OFFSET;
+      const legTimeJ = tSec - (i + 1) * LEG_TIME_OFFSET;
+      const diff = Math.abs(legTimeI - legTimeJ);
+      assert.ok(Math.abs(diff - LEG_TIME_OFFSET) < 1e-10);
     }
   });
 
