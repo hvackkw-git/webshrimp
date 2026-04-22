@@ -84,7 +84,7 @@ describe('travelProgress oscillation', () => {
   test('stays within [0, 1] across a 10-second window', () => {
     for (let t = 0; t <= 10; t += 0.05) {
       const v = travelProgress(PART_CONFIG.tail, t);
-      assert.ok(v >= 0 && v <= 1, `bodyT=${v} out of [0,1] at t=${t}`);
+      assert.ok(v >= 0 && v <= 1, `travelProgress=${v} out of [0,1] at t=${t}`);
     }
   });
 
@@ -222,13 +222,17 @@ describe('leg movement', () => {
   });
 
   test('each leg sweeps the full leg1 range over time', () => {
+    const forwardDuration = Math.abs(PART_CONFIG.leg1.range) / PART_CONFIG.leg1.forwardSpeed;
     for (let i = 0; i < 4; i++) {
       const samples = [];
       for (let t = 0; t <= 5; t += 0.05) samples.push(legAngles(i, t).leg1);
+      for (const keyTime of [i * LEG_TIME_OFFSET, i * LEG_TIME_OFFSET + forwardDuration]) {
+        samples.push(legAngles(i, keyTime).leg1);
+      }
       const lo = Math.min(...samples);
       const hi = Math.max(...samples);
       assert.ok(
-        Math.abs(lo - PART_CONFIG.leg1.base) < 0.15 && Math.abs(hi - (PART_CONFIG.leg1.base + PART_CONFIG.leg1.range)) < 0.15,
+        Math.abs(lo - PART_CONFIG.leg1.base) < 0.1 && Math.abs(hi - (PART_CONFIG.leg1.base + PART_CONFIG.leg1.range)) < 0.1,
         `Leg ${i} only swept leg1=[${lo}, ${hi}], expected [${PART_CONFIG.leg1.base}, ${PART_CONFIG.leg1.base + PART_CONFIG.leg1.range}]`,
       );
     }
