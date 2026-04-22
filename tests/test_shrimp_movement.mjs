@@ -152,13 +152,15 @@ describe('body angle bounds', () => {
     assert.ok(tailRange > body4Range, `Expected tail range (${tailRange}) > body4 range (${body4Range})`);
   });
 
-  test('tail is periodic - same angle after one full cycle', () => {
-    const period = Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.forwardSpeed
-      + Math.abs(PART_CONFIG.tail.range) / PART_CONFIG.tail.backwardSpeed;
+  test('moving body parts are periodic - same angle after one full cycle', () => {
     const t0 = 1.0;
-    const before = bodyAngle('tail', t0);
-    const after = bodyAngle('tail', t0 + period);
-    assert.ok(Math.abs(before - after) < 1e-10, `tail not periodic: ${before} vs ${after}`);
+    for (const name of ['tail', 'body1', 'body2', 'body3', 'body4']) {
+      const conf = PART_CONFIG[name];
+      const period = Math.abs(conf.range) / conf.forwardSpeed + Math.abs(conf.range) / conf.backwardSpeed;
+      const before = bodyAngle(name, t0);
+      const after = bodyAngle(name, t0 + period);
+      assert.ok(Math.abs(before - after) < 1e-10, `${name} not periodic: ${before} vs ${after}`);
+    }
   });
 
   test('decreasing amplitude from tail toward chest', () => {

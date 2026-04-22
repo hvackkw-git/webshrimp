@@ -120,8 +120,12 @@ function parseConfigText(rawText) {
   );
 
   const seen = new Set();
+  const numberPattern = "-?\\d+(?:\\.\\d+)?";
+  const configLinePattern = new RegExp(
+    `^([a-zA-Z0-9_]+)\\s*=\\s*\\(\\s*(${numberPattern})\\s*,\\s*(${numberPattern})\\s*\\)\\s*(?:,\\s*\\(\\s*(${numberPattern})\\s*,\\s*(${numberPattern})\\s*\\))?$`,
+  );
   for (const line of lines) {
-    const match = line.match(/^([a-zA-Z0-9_]+)\s*=\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)\s*(?:,\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\))?$/);
+    const match = line.match(configLinePattern);
     if (!match) {
       throw new Error(`형식 오류: ${line};`);
     }
@@ -136,10 +140,10 @@ function parseConfigText(rawText) {
 
     seen.add(name);
     const forwardSpeed = forwardSpeedRaw === undefined
-      ? nextConfig[name].forwardSpeed
+      ? PART_CONFIG_DEFAULTS[name].forwardSpeed
       : Number(forwardSpeedRaw);
     const backwardSpeed = backwardSpeedRaw === undefined
-      ? nextConfig[name].backwardSpeed
+      ? PART_CONFIG_DEFAULTS[name].backwardSpeed
       : Number(backwardSpeedRaw);
 
     nextConfig[name] = {
