@@ -5,16 +5,16 @@ import assert from 'node:assert/strict';
 const BODY_ORDER = ['tail', 'body1', 'body2', 'body3', 'body4', 'body5', 'chest', 'head'];
 
 const PART_CONFIG = {
-  tail: { base: 20, range: 5 },
-  body1: { base: 16, range: 4 },
-  body2: { base: 11, range: 4 },
-  body3: { base: 7, range: 3 },
-  body4: { base: 2, range: 3 },
+  tail: { base: -20, range: 5 },
+  body1: { base: -16, range: 4 },
+  body2: { base: -11, range: 4 },
+  body3: { base: -7, range: 3 },
+  body4: { base: -2, range: 3 },
   body5: { base: 0, range: 0 },
   chest: { base: 0, range: 0 },
   head: { base: 0, range: 0 },
-  leg1: { base: -35, range: 10 },
-  leg2: { base: -50, range: 15 },
+  leg1: { base: 5, range: 5 },
+  leg2: { base: 5, range: 5 },
 };
 const LEG_PHASE_STEP = Math.PI / 4;
 
