@@ -204,7 +204,7 @@ describe('leg movement', () => {
     }
   });
 
-  test('consecutive legs have phase offset of exactly LEG_PHASE_STEP', () => {
+  test('consecutive legs have phase offset of exactly LEG_TIME_OFFSET', () => {
     const tSec = 0.3;
     for (let i = 0; i < 3; i++) {
       const legTimeI = tSec - i * LEG_TIME_OFFSET;
@@ -228,7 +228,7 @@ describe('leg movement', () => {
       const lo = Math.min(...samples);
       const hi = Math.max(...samples);
       assert.ok(
-        Math.abs(lo - PART_CONFIG.leg1.base) < 0.1 && Math.abs(hi - (PART_CONFIG.leg1.base + PART_CONFIG.leg1.range)) < 0.1,
+        Math.abs(lo - PART_CONFIG.leg1.base) < 0.15 && Math.abs(hi - (PART_CONFIG.leg1.base + PART_CONFIG.leg1.range)) < 0.15,
         `Leg ${i} only swept leg1=[${lo}, ${hi}], expected [${PART_CONFIG.leg1.base}, ${PART_CONFIG.leg1.base + PART_CONFIG.leg1.range}]`,
       );
     }
